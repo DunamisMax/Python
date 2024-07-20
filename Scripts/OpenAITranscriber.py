@@ -33,7 +33,11 @@ def transcribe_audio(file_path):
     Transcribe the given audio file using OpenAI Whisper.
     """
     with open(file_path, "rb") as audio_file:
-        response = openai.Audio.transcribe("whisper-1", audio_file)
+        response = openai.Audio.transcriptions.create(
+            model="whisper-1",
+            file=audio_file,
+            response_format="text"
+        )
     return response['text']
 
 def summarize_text(text):
