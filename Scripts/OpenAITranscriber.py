@@ -3,7 +3,8 @@ import openai
 from pydub import AudioSegment
 
 # Set the OpenAI API key from an environment variable
-openai.api_key = os.getenv("OPENAIAPI")
+api_key = os.getenv("OPENAIAPI")
+client = openai.OpenAI(api_key=api_key)
 
 def get_unique_filename(base_name, extension):
     """
@@ -33,23 +34,26 @@ def transcribe_audio(file_path):
     Transcribe the given audio file using OpenAI Whisper.
     """
     with open(file_path, "rb") as audio_file:
-        response = openai.Audio.transcriptions.create(
+        response = client.audio.transcriptions.create(
             model="whisper-1",
             file=audio_file,
             response_format="text"
         )
-    return response['text']
+    return response.text
 
 def summarize_text(text):
     """
     Summarize the given text and extract Bible references using GPT-4o-mini.
     """
-    response = openai.Completion.create(
+    response = client.chat.completions.create(
         model="gpt-4o-mini",
-        prompt=f"Summarize the following text and extract Bible references:\n\n{text}",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": f"Summarize the following text and extract Bible references:\n\n{text}"}
+        ],
         max_tokens=500
     )
-    return response.choices[0].text.strip()
+    return response.choices[0].message.content.strip()
 
 def main():
     # Prompt the user to input the audio file path
