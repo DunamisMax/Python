@@ -39,7 +39,7 @@ def transcribe_audio(file_path):
             file=audio_file,
             response_format="text"
         )
-    return response.text
+    return response
 
 def summarize_text(text):
     """
@@ -51,7 +51,7 @@ def summarize_text(text):
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": f"Summarize the following text and extract Bible references:\n\n{text}"}
         ],
-        max_tokens=500
+        max_tokens=16384
     )
     return response.choices[0].message.content.strip()
 
