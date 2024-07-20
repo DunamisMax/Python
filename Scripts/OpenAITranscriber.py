@@ -3,7 +3,7 @@ import openai
 from pydub import AudioSegment
 
 # Set the OpenAI API key from an environment variable
-api_key = os.getenv("OPENAIAPI")
+api_key = os.getenv("OPENAI_API_KEY")
 client = openai.OpenAI(api_key=api_key)
 
 def get_unique_filename(base_name, extension):
