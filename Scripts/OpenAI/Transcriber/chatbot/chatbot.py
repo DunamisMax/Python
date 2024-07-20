@@ -24,7 +24,7 @@ def chat_with_gpt4_mini(user_input):
                 {"role": "system", "content": "You are a helpful Customer Service ChatBot."},
                 {"role": "user", "content": user_input}
             ],
-            max_tokens=150
+            max_tokens=16384
         )
         return response['choices'][0]['message']['content'].strip()
     except Exception as e:
