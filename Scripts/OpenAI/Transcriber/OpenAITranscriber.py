@@ -1,5 +1,5 @@
 import os
-import openai
+from openai import OpenAI
 from pydub import AudioSegment
 from dotenv import load_dotenv
 
@@ -10,7 +10,9 @@ load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
 if not api_key:
     raise ValueError("OpenAI API key is not set. Please set the OPENAI_API_KEY environment variable.")
-openai.api_key = api_key
+
+# Instantiate the OpenAI client
+client = OpenAI(api_key=api_key)
 
 def get_unique_filename(base_name, extension):
     """
@@ -41,29 +43,29 @@ def transcribe_audio(file_path):
     """
     try:
         with open(file_path, "rb") as audio_file:
-            response = openai.Audio.transcriptions.create(
+            response = client.audio.transcriptions.create(
                 model="whisper-1",
                 file=audio_file,
-                response_format="text"
+                response_format="json"
             )
-        return response['text']
+        return response.text  # Access the transcription text correctly
     except Exception as e:
         raise RuntimeError(f"Error transcribing audio: {e}")
 
 def summarize_text(text):
     """
-    Summarize the given text and extract Bible references using GPT-4o-mini.
+    Summarize the given text and extract Bible references using GPT-4.
     """
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": f"Summarize the following text and extract Bible references:\n\n{text}"}
             ],
-            max_tokens=1000  # Adjust as needed
+            max_tokens=16384
         )
-        return response.choices[0].message['content'].strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
         raise RuntimeError(f"Error summarizing text: {e}")
 
@@ -97,7 +99,7 @@ def main():
         transcription_file = save_to_file(transcription, "transcription", "txt")
         print(f"Transcription saved to {transcription_file}")
 
-        # Step 3: Get summary and Bible references from GPT-4o-mini
+        # Step 3: Get summary and Bible references from GPT-4
         summary = summarize_text(transcription)
         summary_file = save_to_file(summary, "summary", "md")
         print(f"Summary saved to {summary_file}")
