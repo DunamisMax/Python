@@ -49,7 +49,7 @@ def summarize_text(text):
 
 def main():
     # Prompt the user to input the audio file path
-    audio_file_path = input("Please enter the path to the audio file: ")
+    audio_file_path = input("Please enter the path to the audio file: ").strip('\"')
     
     if not os.path.exists(audio_file_path):
         print("The specified file does not exist. Please check the file path and try again.")
