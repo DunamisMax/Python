@@ -85,6 +85,7 @@ def display_weather(weather_data):
             print(f"Date: {date}")
             print(f"Temperature: {temp_min}°C - {temp_max}°C")
             print(f"Description: {description}")
+            print(f"Weather Code: {weather_code}")
             print("-" * 20)
     else:
         print(
