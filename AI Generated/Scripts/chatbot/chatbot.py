@@ -6,10 +6,24 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Initialize OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+api_key = os.getenv("OPENAI_API_KEY")
+if not api_key:
+    raise EnvironmentError(
+        "API key not found. Please set the OPENAI_API_KEY environment variable."
+    )
+client = OpenAI(api_key=api_key)
 
 
 def chat_with_ai(messages):
+    """
+    Send messages to the OpenAI API and receive a response.
+
+    Args:
+        messages (list): A list of messages to send to the API.
+
+    Returns:
+        str: The response content from the AI.
+    """
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini", messages=messages, max_tokens=16384
@@ -20,6 +34,15 @@ def chat_with_ai(messages):
 
 
 def process_memory(user_input):
+    """
+    Process the user input to check if it contains memory instructions.
+
+    Args:
+        user_input (str): The input from the user.
+
+    Returns:
+        tuple: A tuple containing the processed input and a boolean indicating if it was a memory instruction.
+    """
     memory_prefix = "memory:"
     if user_input.startswith(memory_prefix):
         return user_input[len(memory_prefix) :].strip(), True
@@ -27,6 +50,9 @@ def process_memory(user_input):
 
 
 def display_welcome_message():
+    """
+    Display the welcome message to the user.
+    """
     print(
         "Welcome to your AI assistant with memory! Type 'exit' to end the conversation."
     )
@@ -36,6 +62,9 @@ def display_welcome_message():
 
 
 def main():
+    """
+    The main function to run the AI assistant.
+    """
     display_welcome_message()
 
     messages = [
