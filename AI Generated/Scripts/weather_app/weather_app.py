@@ -68,6 +68,40 @@ def get_weather(location):
         return None
 
 
+def parse_forecast_data(forecast):
+    """
+    Parse forecast data to extract and map relevant information.
+
+    Args:
+        forecast (dict): The forecast data to parse.
+
+    Returns:
+        list: A list of parsed forecast data with descriptions.
+    """
+    parsed_data = []
+    for interval in ["minutely", "hourly", "daily"]:
+        if interval in forecast:
+            for data in forecast[interval]:
+                time = data.get("time")
+                values = data.get("values", {})
+                temp_min = values.get("temperatureMin")
+                temp_max = values.get("temperatureMax")
+                temperature = values.get("temperature")
+                weather_code = values.get("weatherCode")
+                description = WEATHER_CODE_MAP.get(weather_code, "Unknown")
+                parsed_data.append(
+                    {
+                        "time": time,
+                        "temperatureMin": temp_min,
+                        "temperatureMax": temp_max,
+                        "temperature": temperature,
+                        "description": description,
+                        "weatherCode": weather_code,
+                    }
+                )
+    return parsed_data
+
+
 def display_weather(weather_data):
     """
     Display the weather forecast in a user-friendly manner.
@@ -77,17 +111,20 @@ def display_weather(weather_data):
     """
     if weather_data:
         print("Weather Forecast:")
-        for forecast in weather_data.get("timelines", {}).get("daily", []):
-            date = forecast.get("time")
-            temp_min = forecast.get("values", {}).get("temperatureMin")
-            temp_max = forecast.get("values", {}).get("temperatureMax")
-            weather_code = forecast.get("values", {}).get("weatherCodeDay")
-            description = WEATHER_CODE_MAP.get(weather_code, "Unknown")
-
-            print(f"Date: {date}")
-            print(f"Temperature: {temp_min}°C - {temp_max}°C")
-            print(f"Description: {description}")
-            print(f"Weather Code: {weather_code}")
+        parsed_data = parse_forecast_data(weather_data.get("timelines", {}))
+        for data in parsed_data:
+            print(f"Date: {data['time']}")
+            if (
+                data["temperatureMin"] is not None
+                and data["temperatureMax"] is not None
+            ):
+                print(
+                    f"Temperature: {data['temperatureMin']}°C - {data['temperatureMax']}°C"
+                )
+            elif data["temperature"] is not None:
+                print(f"Temperature: {data['temperature']}°C")
+            print(f"Description: {data['description']}")
+            print(f"Weather Code: {data['weatherCode']}")
             print("-" * 20)
     else:
         print(
