@@ -81,7 +81,7 @@ def display_weather(weather_data):
             date = forecast.get("time")
             temp_min = forecast.get("values", {}).get("temperatureMin")
             temp_max = forecast.get("values", {}).get("temperatureMax")
-            weather_code = forecast.get("values", {}).get("weatherCode")
+            weather_code = forecast.get("values", {}).get("weatherCodeDay")
             description = WEATHER_CODE_MAP.get(weather_code, "Unknown")
 
             print(f"Date: {date}")
