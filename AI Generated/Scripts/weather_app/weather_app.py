@@ -60,7 +60,9 @@ def get_weather(location):
     response = requests.get(url, headers=headers)
 
     if response.status_code == 200:
-        return response.json()
+        weather_data = response.json()
+        print(weather_data)  # Print the entire JSON response for debugging
+        return weather_data
     else:
         print(f"Error: {response.status_code} - {response.text}")
         return None
