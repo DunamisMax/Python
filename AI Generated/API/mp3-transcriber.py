@@ -34,7 +34,9 @@ def compress_audio(file_path):
     Compress the given audio file to mp3 format.
     """
     try:
-        audio = AudioSegment.from_file(file_path)
+        # Automatically determine the format from the file extension
+        file_extension = os.path.splitext(file_path)[1][1:]  # Get the extension without the dot
+        audio = AudioSegment.from_file(file_path, format=file_extension)
         compressed_file_path = get_unique_filename("compressed_audio", "mp3")
         audio.export(compressed_file_path, format="mp3", bitrate="64k")
         return compressed_file_path
