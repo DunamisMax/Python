@@ -1,3 +1,3 @@
 # Python
 
-My Python Scripts and Programs
+My Python Scripts, Programs, and Learning Resources
