@@ -4,7 +4,7 @@
 def parse_file_without_strip(filepath):
     with open(filepath, "r") as f:
         for line in f:
-            columns = line.split(" ")  # Splitting on a single space
+            columns = line.split()  # Splitting on a single space
             print(repr(line), columns, len(columns))
 
 
