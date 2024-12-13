@@ -1,28 +1,30 @@
-import socket
-import threading
-import logging
-import time
-from typing import Dict, List, Tuple, Optional
 import asyncio
-from contextlib import asynccontextmanager
+import logging
+from typing import Dict, List, Optional
 
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
-from fastapi import FastAPI
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format="[%(asctime)s] [%(levelname)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
-# Global in-memory state
-clients: Dict[str, socket.socket] = {}
+# Available chat rooms (hard-coded)
+available_rooms = ["General", "Python", "Linux & Open Source", "Off-Topic", "Help"]
+
+# rooms: Dict[str, Dict[str, WebSocket]]
+# rooms[room_name] = {username: websocket}
+rooms: Dict[str, Dict[str, WebSocket]] = {room: {} for room in available_rooms}
+
+# Global state
 usernames = set()
+user_rooms: Dict[str, str] = {}  # Maps username to the room they joined
 
 # Locks to ensure thread-safe operations on shared data
-clients_lock = threading.Lock()
-usernames_lock = threading.Lock()
+usernames_lock = asyncio.Lock()
+rooms_lock = asyncio.Lock()
 
 
 class Message(BaseModel):
@@ -30,12 +32,7 @@ class Message(BaseModel):
     content: str
 
 
-# TCP Chat Server Configuration
-HOST = "0.0.0.0"
-PORT = 42069
-
-
-def assign_username(requested_username: str) -> str:
+async def assign_username(requested_username: str) -> str:
     """
     Assign a unique username. If the requested username is taken or empty,
     append a numeric counter until a unique username is found.
@@ -44,7 +41,7 @@ def assign_username(requested_username: str) -> str:
         requested_username = "User"
     base = requested_username
     counter = 1
-    with usernames_lock:
+    async with usernames_lock:
         while requested_username in usernames:
             requested_username = f"{base}{counter}"
             counter += 1
@@ -52,158 +49,153 @@ def assign_username(requested_username: str) -> str:
     return requested_username
 
 
-def broadcast(msg: Message, exclude: Optional[str] = None) -> None:
+async def broadcast(msg: Message, exclude: Optional[str] = None) -> None:
     """
-    Broadcast a message to all connected clients except 'exclude'.
-    If a client fails to receive, that client is disconnected.
+    Broadcast a message to all connected clients in the same room as msg.sender,
+    except 'exclude'.
     """
-    msg_str = f"[{msg.sender}]: {msg.content}\n"
+    sender_room = user_rooms.get(msg.sender)
+    if not sender_room:
+        return
+
+    msg_str = f"[{msg.sender}]: {msg.content}"
     to_disconnect = []
-    with clients_lock:
-        for user, conn in clients.items():
+    async with rooms_lock:
+        room_clients = rooms.get(sender_room, {})
+        for user, ws in room_clients.items():
             if user != exclude:
                 try:
-                    conn.sendall(msg_str.encode())
+                    await ws.send_text(msg_str)
                 except Exception as e:
                     logging.warning(
                         f"Failed to send to {user}: {e}. Marking for disconnection."
                     )
                     to_disconnect.append(user)
 
-    # Disconnect any clients that failed to receive
     for user in to_disconnect:
-        disconnect_user(user)
+        await disconnect_user(user)
 
 
-def disconnect_user(username: str) -> None:
+async def disconnect_user(username: str) -> None:
     """
     Disconnect a user from the chat:
-    - Removes them from the clients and usernames sets.
-    - Closes their socket connection.
-    - Broadcasts a leave message to others.
+    - Removes them from their room and from usernames.
+    - Closes their WebSocket connection.
+    - Broadcasts a leave message to others in the same room.
     """
-    conn = None
-    with clients_lock:
-        conn = clients.pop(username, None)
-    with usernames_lock:
+    user_room = user_rooms.pop(username, None)
+    ws = None
+    async with rooms_lock:
+        if user_room and user_room in rooms:
+            ws = rooms[user_room].pop(username, None)
+
+    async with usernames_lock:
         usernames.discard(username)
 
-    if conn:
+    if ws:
         try:
-            conn.close()
+            await ws.close()
         except Exception:
             logging.debug(f"Error closing connection for {username}, ignoring.")
 
-    broadcast(Message(sender="SERVER", content=f"{username} has left the chat."))
+    if user_room:
+        await broadcast(
+            Message(sender="SERVER", content=f"{username} has left the chat.")
+        )
 
 
-def handle_client(conn: socket.socket, addr: Tuple[str, int]) -> None:
+async def send_room_list(ws: WebSocket) -> None:
     """
-    Handle an individual client connection:
-    1. Receive the desired username from the client.
-    2. Assign a unique username and notify the client.
-    3. Add the client to the global clients list.
-    4. Broadcast a join message.
-    5. Loop: Read messages from this client and broadcast them.
+    Sends the list of available rooms to the client.
     """
+    room_list = "Available rooms:\n"
+    for i, r in enumerate(available_rooms, start=1):
+        room_list += f"{i}. {r}\n"
+    room_list += "Enter the number of the room you want to join:"
+    await ws.send_text(room_list)
+
+
+app = FastAPI()
+
+
+@app.get("/")
+async def read_root() -> dict:
+    """
+    A simple endpoint to confirm server health and list online users.
+    """
+    async with usernames_lock:
+        current_users: List[str] = list(usernames)
+    return {"status": "ok", "users_online": current_users}
+
+
+@app.websocket("/chat")
+async def websocket_endpoint(ws: WebSocket):
+    # Accept the WebSocket connection
+    await ws.accept()
+
     username = "Unknown"
     try:
-        # Step 1: Get requested username from the client
-        data = conn.recv(1024)
-        if not data:
-            logging.info(f"Connection closed before username was received from {addr}.")
-            conn.close()
-            return
+        # Step 1: Ask for desired username
+        await ws.send_text("Enter your desired username:")
+        requested_username = await ws.receive_text()
+        username = await assign_username(requested_username)
+        await ws.send_text(f"Your username is: {username}")
 
-        requested_username = data.decode().strip()
-        username = assign_username(requested_username)
+        # Step 2: Send room list
+        await send_room_list(ws)
 
-        # Step 2: Notify client of assigned username
-        conn.sendall(f"Your username is: {username}\n".encode())
+        # Step 3: Receive chosen room
+        chosen_str = await ws.receive_text()
+        try:
+            chosen_index = int(chosen_str.strip()) - 1
+            if chosen_index < 0 or chosen_index >= len(available_rooms):
+                chosen_room = "General"
+                await ws.send_text("Invalid choice, defaulting to 'General'.")
+            else:
+                chosen_room = available_rooms[chosen_index]
+        except ValueError:
+            chosen_room = "General"
+            await ws.send_text("Invalid choice, defaulting to 'General'.")
 
-        # Step 3: Add client to global dictionary
-        with clients_lock:
-            clients[username] = conn
+        # Step 4: Add the client to the chosen room
+        async with rooms_lock:
+            rooms[chosen_room][username] = ws
+        user_rooms[username] = chosen_room
 
-        # Step 4: Broadcast join message
-        broadcast(
-            Message(sender="SERVER", content=f"{username} has joined the chat."),
+        # Step 5: Broadcast join message
+        await broadcast(
+            Message(sender="SERVER", content=f"{username} has joined {chosen_room}."),
             exclude=username,
         )
 
-        logging.info(f"{username} connected from {addr}")
+        logging.info(f"{username} connected and joined room: {chosen_room}")
 
-        # Step 5: Message loop
+        # Step 6: Message loop
         while True:
-            data = conn.recv(1024)
-            if not data:
+            try:
+                data = await ws.receive_text()
+            except WebSocketDisconnect:
                 logging.info(f"{username} disconnected.")
                 break
-            msg_text = data.decode().strip()
 
+            msg_text = data.strip()
             if msg_text.lower() == "/quit":
                 logging.info(f"{username} requested to quit.")
                 break
 
-            if msg_text:  # Only broadcast if there's content
-                broadcast(Message(sender=username, content=msg_text), exclude=username)
-    except ConnectionResetError:
-        logging.info(f"Connection reset by client {username} at {addr}.")
+            if msg_text:
+                await broadcast(
+                    Message(sender=username, content=msg_text), exclude=username
+                )
+    except WebSocketDisconnect:
+        logging.info(f"Connection lost with {username}.")
     except Exception as e:
-        logging.error(f"Error handling client {username} at {addr}: {e}")
+        logging.error(f"Error handling client {username}: {e}")
     finally:
-        disconnect_user(username)
-
-
-def start_tcp_server() -> None:
-    """
-    Start the TCP server that accepts new client connections.
-    Spins up a new thread (daemon) for each client.
-    """
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    s.bind((HOST, PORT))
-    s.listen(5)
-    logging.info(f"Chat server listening on {HOST}:{PORT}...")
-
-    while True:
-        conn, addr = s.accept()
-        logging.info(f"Incoming connection from {addr}")
-        client_thread = threading.Thread(
-            target=handle_client, args=(conn, addr), daemon=True
-        )
-        client_thread.start()
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Start the TCP server in a separate thread
-    threading.Thread(target=start_tcp_server, daemon=True).start()
-
-    # Give the server a moment to start
-    await asyncio.sleep(0.5)
-
-    logging.info("FastAPI application startup complete.")
-    yield
-    # No special teardown logic is required here.
-
-
-app = FastAPI(lifespan=lifespan)
-
-
-@app.get("/")
-def read_root() -> dict:
-    """
-    A simple endpoint to confirm server health and list online users.
-    """
-    with usernames_lock:
-        current_users: List[str] = list(usernames)
-    return {"status": "ok", "users_online": current_users}
+        await disconnect_user(username)
 
 
 if __name__ == "__main__":
     import uvicorn
 
-    # Start the FastAPI application with Uvicorn.
-    # The TCP server is already started by the lifespan function.
     uvicorn.run("server:app", host="0.0.0.0", port=8000, log_level="info")
