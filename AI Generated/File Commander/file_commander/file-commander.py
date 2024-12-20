@@ -11,9 +11,9 @@ from cryptography.fernet import Fernet
 
 # Initialize logging
 logging.basicConfig(
-    filename='file_manager.log',
+    filename="file_manager.log",
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(levelname)s - %(message)s",
 )
 
 
@@ -30,14 +30,20 @@ class FileManager:
     def clean_file_types(file_types):
         if not file_types:
             return None
-        cleaned_types = [f".{ft.strip().lower().lstrip('.')}" for ft in file_types.split(",")]
+        cleaned_types = [
+            f".{ft.strip().lower().lstrip('.')}" for ft in file_types.split(",")
+        ]
         return cleaned_types
 
     def get_matching_files(self, file_types=None):
         if file_types:
-            self.matching_files = [p for p in self.root_dir.rglob('*') if p.suffix.lower() in file_types and p.is_file()]
+            self.matching_files = [
+                p
+                for p in self.root_dir.rglob("*")
+                if p.suffix.lower() in file_types and p.is_file()
+            ]
         else:
-            self.matching_files = [p for p in self.root_dir.rglob('*') if p.is_file()]
+            self.matching_files = [p for p in self.root_dir.rglob("*") if p.is_file()]
         return self.matching_files
 
     def copy_files(self, destination):
@@ -53,7 +59,9 @@ class FileManager:
         for file in self.matching_files:
             basename = file.name
             print(f"Current File: {basename}")
-            new_name = input(f"Enter new name for '{basename}' (or leave blank to skip): ").strip()
+            new_name = input(
+                f"Enter new name for '{basename}' (or leave blank to skip): "
+            ).strip()
             if new_name:
                 new_name_with_ext = f"{new_name}{file.suffix}"
                 new_path = file.with_name(new_name_with_ext)
@@ -66,8 +74,10 @@ class FileManager:
                     print(f"Error renaming '{basename}': {e}")
 
     def delete_files(self):
-        confirm = input(f"Are you sure you want to delete {len(self.matching_files)} files? (y/n): ").lower()
-        if confirm == 'y':
+        confirm = input(
+            f"Are you sure you want to delete {len(self.matching_files)} files? (y/n): "
+        ).lower()
+        if confirm == "y":
             for file in tqdm(self.matching_files, desc="Deleting files"):
                 try:
                     file.unlink()
@@ -98,21 +108,25 @@ class FileManager:
         print(f"Total files: {len(self.matching_files)}")
 
     def change_file_extension(self, new_extension):
-        if not new_extension.startswith('.'):
-            new_extension = f'.{new_extension}'
+        if not new_extension.startswith("."):
+            new_extension = f".{new_extension}"
         for file in tqdm(self.matching_files, desc="Changing file extensions"):
             new_file_name = file.with_suffix(new_extension)
             try:
                 file.rename(new_file_name)
-                logging.info(f"Changed extension of '{file.name}' to '{new_file_name.name}'")
+                logging.info(
+                    f"Changed extension of '{file.name}' to '{new_file_name.name}'"
+                )
             except Exception as e:
                 logging.error(f"Failed to change extension for '{file}': {e}")
                 print(f"Error changing extension for '{file}': {e}")
-        print(f"Changed extension of {len(self.matching_files)} files to '{new_extension}'.")
+        print(
+            f"Changed extension of {len(self.matching_files)} files to '{new_extension}'."
+        )
 
     def compress_files(self, zip_name):
         zip_path = Path(zip_name)
-        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
             for file in tqdm(self.matching_files, desc="Compressing files"):
                 try:
                     zipf.write(file, file.relative_to(self.root_dir))
@@ -125,18 +139,18 @@ class FileManager:
     def encrypt_files(self):
         if not self.key:
             self.key = Fernet.generate_key()
-            with open('filekey.key', 'wb') as keyfile:
+            with open("filekey.key", "wb") as keyfile:
                 keyfile.write(self.key)
         else:
-            with open('filekey.key', 'rb') as keyfile:
+            with open("filekey.key", "rb") as keyfile:
                 self.key = keyfile.read()
         fernet = Fernet(self.key)
         for file in tqdm(self.matching_files, desc="Encrypting files"):
             try:
-                with file.open('rb') as original_file:
+                with file.open("rb") as original_file:
                     original = original_file.read()
                 encrypted = fernet.encrypt(original)
-                with file.open('wb') as encrypted_file:
+                with file.open("wb") as encrypted_file:
                     encrypted_file.write(encrypted)
                 logging.info(f"Encrypted '{file}'")
             except Exception as e:
@@ -146,8 +160,8 @@ class FileManager:
 
     def decrypt_files(self):
         if not self.key:
-            if Path('filekey.key').exists():
-                with open('filekey.key', 'rb') as keyfile:
+            if Path("filekey.key").exists():
+                with open("filekey.key", "rb") as keyfile:
                     self.key = keyfile.read()
             else:
                 print("Encryption key not found. Cannot decrypt files.")
@@ -155,10 +169,10 @@ class FileManager:
         fernet = Fernet(self.key)
         for file in tqdm(self.matching_files, desc="Decrypting files"):
             try:
-                with file.open('rb') as encrypted_file:
+                with file.open("rb") as encrypted_file:
                     encrypted = encrypted_file.read()
                 decrypted = fernet.decrypt(encrypted)
-                with file.open('wb') as decrypted_file:
+                with file.open("wb") as decrypted_file:
                     decrypted_file.write(decrypted)
                 logging.info(f"Decrypted '{file}'")
             except Exception as e:
@@ -171,7 +185,7 @@ class FileManager:
         for file in tqdm(self.matching_files, desc="Calculating checksums"):
             try:
                 hasher = hashlib.sha256()
-                with file.open('rb') as f:
+                with file.open("rb") as f:
                     for chunk in iter(lambda: f.read(4096), b""):
                         hasher.update(chunk)
                 checksum = hasher.hexdigest()
@@ -186,7 +200,9 @@ class FileManager:
 
     def run(self):
         # Step 2: Input the file types to search for (optional)
-        file_types_input = input("Enter file types to search for (comma-separated, or press Enter for all file types): ").strip()
+        file_types_input = input(
+            "Enter file types to search for (comma-separated, or press Enter for all file types): "
+        ).strip()
         file_types = self.clean_file_types(file_types_input)
 
         # Step 3: Get the matching files
@@ -213,35 +229,37 @@ class FileManager:
 
             choice = input("\nEnter your choice (1-11): ").strip()
 
-            if choice == '1':
+            if choice == "1":
                 dest_dir = input("Enter the destination folder path: ").strip()
                 self.copy_files(dest_dir)
-            elif choice == '2':
+            elif choice == "2":
                 self.smart_rename()
-            elif choice == '3':
+            elif choice == "3":
                 self.delete_files()
-            elif choice == '4':
+            elif choice == "4":
                 dest_dir = input("Enter the destination folder path: ").strip()
                 self.move_files(dest_dir)
-            elif choice == '5':
+            elif choice == "5":
                 self.list_files()
-            elif choice == '6':
+            elif choice == "6":
                 new_extension = input("Enter the new extension (e.g., .txt): ").strip()
-                if not new_extension.startswith('.'):
-                    new_extension = '.' + new_extension
+                if not new_extension.startswith("."):
+                    new_extension = "." + new_extension
                 self.change_file_extension(new_extension)
-            elif choice == '7':
-                zip_name = input("Enter the name of the ZIP file (e.g., archive.zip): ").strip()
-                if not zip_name.endswith('.zip'):
-                    zip_name += '.zip'
+            elif choice == "7":
+                zip_name = input(
+                    "Enter the name of the ZIP file (e.g., archive.zip): "
+                ).strip()
+                if not zip_name.endswith(".zip"):
+                    zip_name += ".zip"
                 self.compress_files(zip_name)
-            elif choice == '8':
+            elif choice == "8":
                 self.encrypt_files()
-            elif choice == '9':
+            elif choice == "9":
                 self.decrypt_files()
-            elif choice == '10':
+            elif choice == "10":
                 self.checksum_files()
-            elif choice == '11':
+            elif choice == "11":
                 print("Exiting the program.")
                 break
             else:

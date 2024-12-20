@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "file_commander"
+version = "0.1.0"
+description = "File Commander"
+authors = ["DunamisMax <dunamismax@tutamail.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.13"
+tqdm = "^4.67.1"
+cryptography = "^44.0.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
