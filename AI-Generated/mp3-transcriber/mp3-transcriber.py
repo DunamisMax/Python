@@ -7,7 +7,9 @@ import openai
 
 
 def setup_logging():
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+    )
 
 
 def get_api_key():
@@ -17,7 +19,9 @@ def get_api_key():
     load_dotenv()
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        logging.error("OpenAI API key is not set. Please set the OPENAI_API_KEY environment variable.")
+        logging.error(
+            "OpenAI API key is not set. Please set the OPENAI_API_KEY environment variable."
+        )
         exit(1)
     return api_key
 
@@ -40,7 +44,9 @@ def compress_audio(file_path):
     Compress the given audio file to mp3 format with a lower bitrate.
     """
     try:
-        file_extension = os.path.splitext(file_path)[1][1:]  # Get extension without the dot
+        file_extension = os.path.splitext(file_path)[1][
+            1:
+        ]  # Get extension without the dot
         audio = AudioSegment.from_file(file_path, format=file_extension)
         compressed_file_path = get_unique_filename("compressed_audio", "mp3")
         audio.export(compressed_file_path, format="mp3", bitrate="64k")
@@ -56,9 +62,7 @@ def transcribe_audio(file_path):
     try:
         with open(file_path, "rb") as audio_file:
             response = openai.Audio.transcribe(
-                model="whisper-1",
-                file=audio_file,
-                response_format="text"
+                model="whisper-1", file=audio_file, response_format="text"
             )
         if response:
             return response
@@ -76,7 +80,7 @@ def save_to_file(content, base_name, extension):
     """
     try:
         file_path = get_unique_filename(base_name, extension)
-        with open(file_path, 'w', encoding='utf-8') as file:
+        with open(file_path, "w", encoding="utf-8") as file:
             file.write(content)
         return file_path
     except Exception as e:
@@ -88,15 +92,23 @@ def main():
     api_key = get_api_key()
     openai.api_key = api_key
 
-    parser = argparse.ArgumentParser(description="Transcribe an audio file using OpenAI Whisper API.")
-    parser.add_argument('audio_file_path', type=str, help='Path to the audio file to transcribe')
-    parser.add_argument('--no-compress', action='store_true', help='Skip audio compression step')
+    parser = argparse.ArgumentParser(
+        description="Transcribe an audio file using OpenAI Whisper API."
+    )
+    parser.add_argument(
+        "audio_file_path", type=str, help="Path to the audio file to transcribe"
+    )
+    parser.add_argument(
+        "--no-compress", action="store_true", help="Skip audio compression step"
+    )
 
     args = parser.parse_args()
     audio_file_path = args.audio_file_path
 
     if not os.path.exists(audio_file_path):
-        logging.error("The specified file does not exist. Please check the file path and try again.")
+        logging.error(
+            "The specified file does not exist. Please check the file path and try again."
+        )
         exit(1)
 
     try:
@@ -118,5 +130,5 @@ def main():
         exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
